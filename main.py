@@ -1,5 +1,6 @@
 # main.py
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 import httpx
 
 app = FastAPI()
@@ -16,11 +17,10 @@ async def gtr(client: httpx.AsyncClient, text: str, tl: str) -> str:
         )
         if r.status_code == 200:
             data = r.json()
-            # ответ — массив сегментов; склеим перевод
             return "".join(seg[0] for seg in data[0] if seg and seg[0])
     except Exception:
         pass
-    return text  # фолбэк: вернём оригинал
+    return text
 
 @app.get("/fact")
 async def get_fact(lang: str = "en"):
@@ -29,3 +29,58 @@ async def get_fact(lang: str = "en"):
         if lang.lower().startswith("ru"):
             fact = await gtr(c, fact, "ru")
     return {"fact": fact}
+
+@app.get("/", response_class=HTMLResponse)
+def ui():
+    return """
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Cat Facts</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:2rem;line-height:1.5}
+    .box{max-width:640px;margin:auto;padding:1rem;border:1px solid #ddd;border-radius:12px}
+    button,select{font-size:1rem;padding:.5rem .8rem;border-radius:.6rem;border:1px solid #ccc;cursor:pointer}
+    #fact{margin-top:1rem;font-size:1.1rem}
+    img{display:block;max-width:100%;height:auto;border-radius:12px;margin:.5rem 0 1rem}
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Cat Facts 😺</h1>
+    <img src="https://cataas.com/cat?type=square&width=600&height=400" alt="cat">
+    <div>
+      Язык:
+      <select id="lang">
+        <option value="en">English</option>
+        <option value="ru" selected>Русский</option>
+      </select>
+      <button id="btn">Получить факт</button>
+    </div>
+    <div id="fact">Нажми кнопку, чтобы узнать факт о котах.</div>
+  </div>
+
+  <script>
+    const btn = document.getElementById('btn');
+    const factBox = document.getElementById('fact');
+    const langSel = document.getElementById('lang');
+
+    async function loadFact() {
+      factBox.textContent = 'Загрузка...';
+      try {
+        const lang = langSel.value;
+        const res = await fetch('/fact?lang=' + encodeURIComponent(lang));
+        const data = await res.json();
+        factBox.textContent = data.fact || 'Не удалось получить факт.';
+      } catch (e) {
+        factBox.textContent = 'Ошибка сети.';
+      }
+    }
+
+    btn.addEventListener('click', loadFact);
+  </script>
+</body>
+</html>
+"""
