@@ -50,7 +50,7 @@ def ui():
 <body>
   <div class="box">
     <h1>Cat Facts 😺</h1>
-    <img src="https://cataas.com/cat?type=square&width=600&height=400" alt="cat">
+    <img src="" alt="cat" id="catimg">
     <div>
       Язык:
       <select id="lang">
@@ -66,9 +66,15 @@ def ui():
     const btn = document.getElementById('btn');
     const factBox = document.getElementById('fact');
     const langSel = document.getElementById('lang');
+    const img = document.getElementById('catimg');
+
+    // при загрузке страницы — сразу новый кот
+    img.src = "https://cataas.com/cat?width=600&height=400&timestamp=" + Date.now();
 
     async function loadFact() {
       factBox.textContent = 'Загрузка...';
+      // каждый раз новый кот
+      img.src = "https://cataas.com/cat?width=600&height=400&timestamp=" + Date.now();
       try {
         const lang = langSel.value;
         const res = await fetch('/fact?lang=' + encodeURIComponent(lang));
@@ -84,3 +90,4 @@ def ui():
 </body>
 </html>
 """
+
