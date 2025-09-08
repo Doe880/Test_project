@@ -68,13 +68,13 @@ def ui():
     const langSel = document.getElementById('lang');
     const img = document.getElementById('catimg');
 
-    // при загрузке страницы — сразу новый кот
-    img.src = "https://cataas.com/cat?width=600&height=400&timestamp=" + Date.now();
+    // при загрузке страницы — сразу новый кот (через loremflickr)
+    img.src = "https://loremflickr.com/600/400/kitten,cat?random=" + Date.now();
 
     async function loadFact() {
       factBox.textContent = 'Загрузка...';
       // каждый раз новый кот
-      img.src = "https://cataas.com/cat?width=600&height=400&timestamp=" + Date.now();
+      img.src = "https://loremflickr.com/600/400/kitten,cat?random=" + Date.now();
       try {
         const lang = langSel.value;
         const res = await fetch('/fact?lang=' + encodeURIComponent(lang));
@@ -90,4 +90,5 @@ def ui():
 </body>
 </html>
 """
+
 
