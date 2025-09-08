@@ -1,12 +1,13 @@
 # main.py
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
-import httpx
+from fastapi.responses import HTMLResponse, RedirectResponse
+import httpx, random
 
 app = FastAPI()
 
 CATFACT_URL = "https://catfact.ninja/fact"
 GT_URL = "https://translate.googleapis.com/translate_a/single"
+COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 
 async def gtr(client: httpx.AsyncClient, text: str, tl: str) -> str:
     try:
@@ -29,6 +30,32 @@ async def get_fact(lang: str = "en"):
         if lang.lower().startswith("ru"):
             fact = await gtr(c, fact, "ru")
     return {"fact": fact}
+
+# ❱❱❱ Новый эндпоинт: редирект на случайную картинку кота с Wikimedia Commons
+@app.get("/catimg")
+async def catimg():
+    params = {
+        "action": "query",
+        "generator": "categorymembers",
+        "gcmtitle": "Category:Felis catus",  # категория с фото домашних кошек
+        "gcmnamespace": "6",                 # файлы
+        "gcmlimit": "50",
+        "prop": "imageinfo",
+        "iiprop": "url",
+        "iiurlwidth": "1200",
+        "format": "json",
+    }
+    async with httpx.AsyncClient() as c:
+        r = await c.get(COMMONS_API, params=params, timeout=8)
+        pages = (r.json().get("query") or {}).get("pages") or {}
+        items = list(pages.values())
+        if not items:
+            # запасной вариант (редко)
+            return RedirectResponse("https://upload.wikimedia.org/wikipedia/commons/3/3a/Cat03.jpg")
+        page = random.choice(items)
+        info = (page.get("imageinfo") or [{}])[0]
+        url = info.get("thumburl") or info.get("url")
+        return RedirectResponse(url)
 
 @app.get("/", response_class=HTMLResponse)
 def ui():
@@ -68,13 +95,17 @@ def ui():
     const langSel = document.getElementById('lang');
     const img = document.getElementById('catimg');
 
-    // при загрузке страницы — сразу новый кот (через loremflickr)
-    img.src = "https://loremflickr.com/600/400/kitten,cat?random=" + Date.now();
+    function newCat() {
+      // добавляем ?ts=... чтобы обойти кэш
+      img.src = "/catimg?ts=" + Date.now();
+    }
+
+    // при загрузке страницы — сразу показать кота
+    newCat();
 
     async function loadFact() {
       factBox.textContent = 'Загрузка...';
-      // каждый раз новый кот
-      img.src = "https://loremflickr.com/600/400/kitten,cat?random=" + Date.now();
+      newCat(); // и картинку обновим
       try {
         const lang = langSel.value;
         const res = await fetch('/fact?lang=' + encodeURIComponent(lang));
@@ -90,5 +121,6 @@ def ui():
 </body>
 </html>
 """
+
 
 
