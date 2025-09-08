@@ -1,7 +1,7 @@
 # main.py
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, RedirectResponse
-import httpx, random
+from fastapi import FastAPI, Response
+from fastapi.responses import HTMLResponse
+import httpx
 
 app = FastAPI()
 
@@ -9,7 +9,9 @@ CATFACT_URL = "https://catfact.ninja/fact"
 GT_URL = "https://translate.googleapis.com/translate_a/single"
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 
+
 async def gtr(client: httpx.AsyncClient, text: str, tl: str) -> str:
+    """Ленивый перевод через неофициальный Google Translate; фолбэк — исходный текст."""
     try:
         r = await client.get(
             GT_URL,
@@ -23,39 +25,77 @@ async def gtr(client: httpx.AsyncClient, text: str, tl: str) -> str:
         pass
     return text
 
+
 @app.get("/fact")
 async def get_fact(lang: str = "en"):
     async with httpx.AsyncClient() as c:
-        fact = (await c.get(CATFACT_URL, timeout=5)).json()["fact"]
+        try:
+            fact = (await c.get(CATFACT_URL, timeout=5)).json()["fact"]
+        except Exception:
+            fact = "Cats sleep 12–16 hours a day."  # запасной вариант
         if lang.lower().startswith("ru"):
             fact = await gtr(c, fact, "ru")
     return {"fact": fact}
 
-# ❱❱❱ Новый эндпоинт: редирект на случайную картинку кота с Wikimedia Commons
+
 @app.get("/catimg")
 async def catimg():
-    params = {
-        "action": "query",
-        "generator": "categorymembers",
-        "gcmtitle": "Category:Felis catus",  # категория с фото домашних кошек
-        "gcmnamespace": "6",                 # файлы
-        "gcmlimit": "50",
-        "prop": "imageinfo",
-        "iiprop": "url",
-        "iiurlwidth": "1200",
-        "format": "json",
-    }
-    async with httpx.AsyncClient() as c:
-        r = await c.get(COMMONS_API, params=params, timeout=8)
-        pages = (r.json().get("query") or {}).get("pages") or {}
-        items = list(pages.values())
-        if not items:
-            # запасной вариант (редко)
-            return RedirectResponse("https://upload.wikimedia.org/wikipedia/commons/3/3a/Cat03.jpg")
-        page = random.choice(items)
-        info = (page.get("imageinfo") or [{}])[0]
-        url = info.get("thumburl") or info.get("url")
-        return RedirectResponse(url)
+    """Проксирование случайной картинки кота из Wikimedia Commons + запрет кэша."""
+    async with httpx.AsyncClient(follow_redirects=True, timeout=10) as c:
+        try:
+            # 1) Случайный файл из пространства файлов (ns=6)
+            r1 = await c.get(COMMONS_API, params={
+                "action": "query",
+                "list": "random",
+                "rnnamespace": "6",
+                "rnlimit": "1",
+                "format": "json",
+            })
+            rnd = (r1.json().get("query") or {}).get("random") or []
+            title = rnd[0]["title"] if rnd else None
+            if not title:
+                raise RuntimeError("no random file")
+
+            # 2) Получаем прямой URL уменьшенной копии
+            r2 = await c.get(COMMONS_API, params={
+                "action": "query",
+                "titles": title,
+                "prop": "imageinfo",
+                "iiprop": "url|mime",
+                "iiurlwidth": "1200",
+                "format": "json",
+            })
+            pages = (r2.json().get("query") or {}).get("pages") or {}
+            info = next(iter(pages.values()), {})
+            ii = (info.get("imageinfo") or [{}])[0]
+            img_url = ii.get("thumburl") or ii.get("url")
+            if not img_url:
+                raise RuntimeError("no image url")
+
+            # 3) Качаем и отдаём байты с заголовками no-cache
+            img = await c.get(img_url)
+            media_type = img.headers.get("content-type", ii.get("mime") or "image/jpeg")
+            return Response(
+                content=img.content,
+                media_type=media_type,
+                headers={
+                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                },
+            )
+        except Exception:
+            fb = await c.get("https://upload.wikimedia.org/wikipedia/commons/3/3a/Cat03.jpg")
+            return Response(
+                content=fb.content,
+                media_type=fb.headers.get("content-type", "image/jpeg"),
+                headers={
+                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                },
+            )
+
 
 @app.get("/", response_class=HTMLResponse)
 def ui():
@@ -96,16 +136,16 @@ def ui():
     const img = document.getElementById('catimg');
 
     function newCat() {
-      // добавляем ?ts=... чтобы обойти кэш
+      // анти-кэш параметр
       img.src = "/catimg?ts=" + Date.now();
     }
 
-    // при загрузке страницы — сразу показать кота
+    // показать кота при загрузке
     newCat();
 
     async function loadFact() {
       factBox.textContent = 'Загрузка...';
-      newCat(); // и картинку обновим
+      newCat(); // обновим картинку
       try {
         const lang = langSel.value;
         const res = await fetch('/fact?lang=' + encodeURIComponent(lang));
@@ -121,6 +161,7 @@ def ui():
 </body>
 </html>
 """
+
 
 
 
