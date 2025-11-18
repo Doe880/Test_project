@@ -5,14 +5,117 @@
   <title>Cat Facts</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:2rem;line-height:1.5}
-    .box{max-width:640px;margin:auto;padding:1rem;border:1px solid #ddd;border-radius:12px}
-    button,select{font-size:1rem;padding:.5rem .8rem;border-radius:.6rem;border:1px solid #ccc;cursor:pointer}
-    #fact{margin-top:1rem;font-size:1.1rem}
-    img{display:block;max-width:100%;height:auto;border-radius:12px;margin:.5rem 0 1rem}
+    body{
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      margin:2rem;
+      line-height:1.5
+    }
+    .box{
+      max-width:640px;
+      margin:auto;
+      padding:1rem;
+      border:1px solid #ddd;
+      border-radius:12px
+    }
+    button,select{
+      font-size:1rem;
+      padding:.5rem .8rem;
+      border-radius:.6rem;
+      border:1px solid #ccc;
+      cursor:pointer
+    }
+    #fact{
+      margin-top:1rem;
+      font-size:1.1rem
+    }
+    img{
+      display:block;
+      max-width:100%;
+      height:auto;
+      border-radius:12px;
+      margin:.5rem 0 1rem
+    }
+
+    /* --- БЕГАЮЩИЙ КОТ --- */
+
+    :root {
+      --cat-speed: 7s; /* базовая скорость бега */
+    }
+
+    .cat-run {
+      position: fixed;
+      bottom: 10px;
+      left: -120px;
+      font-size: 60px;
+      pointer-events: none;
+      animation-timing-function: linear;
+      animation-iteration-count: infinite;
+      animation-duration: var(--cat-speed);
+    }
+
+    .cat-run.forward {
+      animation-name: cat-run-right;
+    }
+
+    .cat-run.backward {
+      animation-name: cat-run-left;
+    }
+
+    /* Вправо с лёгкими "прыжками" */
+    @keyframes cat-run-right {
+      0%   { transform: translateX(-10vw) translateY(0); }
+      20%  { transform: translateX(10vw)  translateY(-15px); }
+      40%  { transform: translateX(30vw)  translateY(0); }
+      60%  { transform: translateX(50vw)  translateY(-20px); }
+      80%  { transform: translateX(80vw)  translateY(0); }
+      100% { transform: translateX(110vw) translateY(-10px); }
+    }
+
+    /* Влево с теми же прыжками, только зеркально */
+    @keyframes cat-run-left {
+      0%   { transform: translateX(110vw) translateY(0) scaleX(-1); }
+      20%  { transform: translateX(80vw)  translateY(-15px) scaleX(-1); }
+      40%  { transform: translateX(50vw)  translateY(0) scaleX(-1); }
+      60%  { transform: translateX(30vw)  translateY(-20px) scaleX(-1); }
+      80%  { transform: translateX(10vw)  translateY(0) scaleX(-1); }
+      100% { transform: translateX(-10vw) translateY(-10px) scaleX(-1); }
+    }
+
+    /* --- Следы от лапок --- */
+
+    .paw-trail {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      pointer-events: none;
+      overflow: visible;
+      z-index: -1;
+    }
+
+    .paw {
+      position: absolute;
+      bottom: 6px;
+      font-size: 22px;
+      opacity: 0;
+      animation: paw-fade 3s ease-out forwards;
+    }
+
+    @keyframes paw-fade {
+      0%   { opacity: 0; transform: translateY(0); }
+      20%  { opacity: 1; transform: translateY(-4px); }
+      100% { opacity: 0; transform: translateY(-26px); }
+    }
   </style>
 </head>
 <body>
+
+  <!-- Хвост от лапок -->
+  <div class="paw-trail" id="paw-trail"></div>
+
+  <!-- БЕГАЮЩИЙ КОТ -->
+  <div class="cat-run forward" id="runner">🐈💨</div>
+
   <div class="box">
     <h1>Cat Facts 😺</h1>
     <img src="" alt="cat" id="catimg">
@@ -28,7 +131,7 @@
   </div>
 
   <script>
-    const API = "https://test-project-x6bt.onrender.com"; // ← ТВОЙ ДОМЕН БЭКЕНДА
+    const API = "https://test-project-x6bt.onrender.com";
 
     const btn = document.getElementById('btn');
     const factBox = document.getElementById('fact');
@@ -39,10 +142,14 @@
       img.src = API + "/catimg?ts=" + Date.now();
     }
 
-    newCat(); // показать кота при загрузке
+    newCat();
 
     async function loadFact() {
       factBox.textContent = 'Загрузка...';
+
+      // ускоряем кота во время "получения факта"
+      turboCat();
+
       newCat();
       try {
         const lang = langSel.value;
@@ -55,6 +162,80 @@
     }
 
     btn.addEventListener('click', loadFact);
+
+    /* 🐈 --- Анимированный кот: настроение, направление, скорость --- */
+
+    const runner = document.getElementById('runner');
+    const pawTrail = document.getElementById('paw-trail');
+
+    const kittyEmojis = [
+      "🐈💨",
+      "🐈‍⬛💨",
+      "😺",
+      "😼",
+      "😹",
+      "🙀",
+      "🐾",
+      "🐱‍👓",
+      "🐱‍🏍",
+      "🐱‍👤"
+    ];
+
+    function randomKitty() {
+      const k = kittyEmojis[Math.floor(Math.random() * kittyEmojis.length)];
+      runner.textContent = k;
+    }
+
+    function randomDirection() {
+      // 50/50 меняем направление
+      const toLeft = Math.random() < 0.5;
+      runner.classList.toggle("forward", !toLeft);
+      runner.classList.toggle("backward", toLeft);
+    }
+
+    function spawnPaw() {
+      const span = document.createElement("span");
+      span.className = "paw";
+      span.textContent = "🐾";
+      // случайное расположение по горизонтали
+      span.style.left = (Math.random() * 90) + "vw";
+      pawTrail.appendChild(span);
+      setTimeout(() => {
+        if (span.parentNode) pawTrail.removeChild(span);
+      }, 3100);
+    }
+
+    function spawnPawBurst(count) {
+      for (let i = 0; i < count; i++) {
+        setTimeout(spawnPaw, i * 150);
+      }
+    }
+
+    // базовое настроение и следы на старте
+    randomKitty();
+    spawnPawBurst(4);
+
+    // при каждом завершении цикла анимации:
+    runner.addEventListener("animationiteration", () => {
+      randomKitty();          // меняем эмоцию
+      randomDirection();      // иногда меняем направление
+      spawnPawBurst(3);       // оставляем следы
+    });
+
+    // временное ускорение кота
+    let turboTimeout = null;
+
+    function turboCat() {
+      document.documentElement.style.setProperty('--cat-speed', '3s');
+      spawnPawBurst(5);
+      if (turboTimeout) {
+        clearTimeout(turboTimeout);
+      }
+      turboTimeout = setTimeout(() => {
+        document.documentElement.style.setProperty('--cat-speed', '7s');
+      }, 4000);
+    }
   </script>
+
 </body>
 </html>
