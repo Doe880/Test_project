@@ -36,6 +36,23 @@
       margin:.5rem 0 1rem
     }
 
+    /* --- СТИЛИ ДЛЯ РАЗНОЦВЕТНОГО ЗАГОЛОВКА --- */
+    .box h1 span {
+      display: inline-block;
+    }
+
+    /* Раскрашиваем каждую букву */
+    .c1 { color: #FF0000; } /* Красный */
+    .c2 { color: #FF8800; } /* Оранжевый */
+    .c3 { color: #FFEE00; } /* Желтый */
+    .c4 { color: #00FF00; } /* Зеленый (пробел) */
+    .c5 { color: #00CCFF; } /* Голубой */
+    .c6 { color: #0066FF; } /* Синий */
+    .c7 { color: #AA00FF; } /* Фиолетовый */
+    .c8 { color: #FF00FF; } /* Пурпурный */
+    .c9 { color: #FF0000; } /* Красный */
+    .c10 { color: #FF8800; } /* Оранжевый (эмодзи) */
+
     /* --- БЕГАЮЩИЙ КОТ --- */
 
     :root {
@@ -110,14 +127,19 @@
 </head>
 <body>
 
-  <!-- Хвост от лапок -->
   <div class="paw-trail" id="paw-trail"></div>
 
-  <!-- БЕГАЮЩИЙ КОТ -->
   <div class="cat-run forward" id="runner">🐈💨</div>
 
   <div class="box">
-    <h1>Cat Facts 😺</h1>
+
+    <h1>
+      <span class="c1">C</span><span class="c2">a</span><span class="c3">t</span>
+      <span class="c4"> </span>
+      <span class="c5">F</span><span class="c6">a</span><span class="c7">c</span><span class="c8">t</span><span class="c9">s</span>
+      <span class="c10"> 😺</span>
+    </h1>
+
     <img src="" alt="cat" id="catimg">
     <div>
       Язык:
