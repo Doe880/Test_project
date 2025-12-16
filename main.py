@@ -1,6 +1,5 @@
 # main.py
 import os
-import random
 import httpx
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,19 +21,16 @@ if ALLOW_ORIGINS:
 
 CATFACT_URL = "https://catfact.ninja/fact"
 GT_URL = "https://translate.googleapis.com/translate_a/single"
-COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 
-# Только кошачьи категории
-CAT_CATEGORIES = [
-    "Category:Felis catus",
-    "Category:Kittens",
-    "Category:Cats",
-]
+# TheCatAPI (без ключа)
+CAT_API_URL = "https://api.thecatapi.com/v1/images/search"
 
-# Вежливый User-Agent для Wikimedia (по их правилам)
-WM_HEADERS = {
-    "User-Agent": "CatFactsDemo/1.0 (contact: example@example.com)"
-}
+def no_cache_headers():
+    return {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }
 
 async def translate_lazy(client: httpx.AsyncClient, text: str, tl: str) -> str:
     try:
@@ -68,83 +64,31 @@ async def get_fact(lang: str = "en"):
 @app.get("/catimg")
 async def catimg():
     """
-    Проксируем случайную картинку КОТА с Wikimedia Commons:
-    - корректный User-Agent
-    - выбор из кошачьих категорий
-    - no-cache заголовки
+    Проксируем случайную картинку кота через TheCatAPI (без ключа).
     """
-    async with httpx.AsyncClient(follow_redirects=True, timeout=12, headers=WM_HEADERS) as c:
+    async with httpx.AsyncClient(follow_redirects=True, timeout=15) as c:
         try:
-            # Несколько попыток: перебираем категории в случайном порядке
-            for category in random.sample(CAT_CATEGORIES, k=len(CAT_CATEGORIES)):
-                r = await c.get(
-                    COMMONS_API,
-                    params={
-                        "action": "query",
-                        "generator": "categorymembers",
-                        "gcmtitle": category,
-                        "gcmtype": "file",
-                        "gcmlimit": "100",
-                        "prop": "imageinfo",
-                        "iiprop": "url|mime",
-                        "iiurlwidth": "1200",
-                        "format": "json",
-                    },
-                )
-                pages = (r.json().get("query") or {}).get("pages") or {}
-                items = [p for p in pages.values() if p.get("imageinfo")]
-                if not items:
-                    continue
+            # 1) Получаем URL случайной картинки кота
+            r = await c.get(CAT_API_URL, headers={"User-Agent": "CatFactsApp/1.0"})
+            r.raise_for_status()
+            data = r.json()
 
-                # Выбираем случайный файл и тянем байты
-                chosen = random.choice(items)
-                ii = chosen["imageinfo"][0]
-                img_url = ii.get("thumburl") or ii.get("url")
-                if not img_url:
-                    continue
-
-                img = await c.get(img_url)
-                if img.status_code != 200 or not img.content:
-                    continue
-
-                media_type = img.headers.get("content-type", ii.get("mime") or "image/jpeg")
-                return Response(
-                    content=img.content,
-                    media_type=media_type,
-                    headers={
-                        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-                        "Pragma": "no-cache",
-                        "Expires": "0",
-                    },
-                )
-
-            # если все категории не дали валидный ответ — фолбэк
-            fb = await c.get("https://upload.wikimedia.org/wikipedia/commons/3/3a/Cat03.jpg")
-            return Response(
-                content=fb.content,
-                media_type=fb.headers.get("content-type", "image/jpeg"),
-                headers={
-                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-                    "Pragma": "no-cache",
-                    "Expires": "0",
-                },
-            )
-        except Exception:
-            # на крайний случай — тот же фолбэк (если, например, временно нет исходящего интернета)
-            try:
-                fb = await c.get("https://upload.wikimedia.org/wikipedia/commons/3/3a/Cat03.jpg")
-                return Response(
-                    content=fb.content,
-                    media_type=fb.headers.get("content-type", "image/jpeg"),
-                    headers={
-                        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-                        "Pragma": "no-cache",
-                        "Expires": "0",
-                    },
-                )
-            except Exception:
-                # вернём пустой 204, чтобы фронт мог показать заглушку
+            if not data or "url" not in data[0]:
                 return Response(status_code=204)
+
+            img_url = data[0]["url"]
+
+            # 2) Скачиваем изображение и отдаём байты
+            img = await c.get(img_url, headers={"User-Agent": "CatFactsApp/1.0"})
+            ctype = (img.headers.get("content-type") or "image/jpeg").lower()
+
+            if img.status_code != 200 or not img.content or not ctype.startswith("image/"):
+                return Response(status_code=204)
+
+            return Response(content=img.content, media_type=ctype, headers=no_cache_headers())
+
+        except Exception:
+            return Response(status_code=204)
 
 @app.get("/", response_class=HTMLResponse)
 def ui():
@@ -204,3 +148,4 @@ def ui():
 </body>
 </html>
 """
+
